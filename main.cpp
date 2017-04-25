@@ -83,7 +83,7 @@ Mat CalcEnergy(Mat &enrg){
     Mat calc_energ(Size(enrg.cols, enrg.rows), CV_16UC1);
 
     for(size_t y = 0; y < enrg.cols; y++){
-        calc_energ.at<uchar>(0, y) = enrg.at<uchar>(0, y);
+        calc_energ.at<ushort>(0, y) = enrg.at<uchar>(0, y);
     }
 
     for (size_t x = 1; x < enrg.rows; x++){
