@@ -18,6 +18,8 @@ unsigned char kern[9] = {
 };
 size_t kern_size = 3;
 
+const uchar COLOR_CONST = 120;
+
 Mat GetEnergy(Mat const &im){
     Mat En (Size(im.rows, im.cols), CV_8UC1);
     Mat EnBuf;//(Size(im.rows, im.cols), im.step);
@@ -26,12 +28,10 @@ Mat GetEnergy(Mat const &im){
 
     filter2D(im, EnBuf, -1, kernel_matrix, Point(-1, -1), 0, BORDER_DEFAULT);
 
-    cout<<"OK"<<endl;
 
     for(size_t x = 0; x < im.rows; x++){
         for (size_t y = 0; y < im.cols; y++){
             En.at<uchar>(x, y) = (EnBuf.at<Vec3b>(x, y)[0] / 1 + EnBuf.at<Vec3b>(x, y)[1] / 1 + EnBuf.at<Vec3b>(x, y)[2] / 1) / 1;
-            cout<< static_cast<int>(En.at<uchar>(x, y))<<" ";
         }
     }
     return En;
@@ -71,7 +71,6 @@ Mat MyFilter(Mat & src){
                     }
                 }
             }
-            //cout<<diff<<" ";
             enrg.at<uchar>(x, y) = diff / (1);
             diff = 0;
         }
@@ -79,11 +78,49 @@ Mat MyFilter(Mat & src){
     return enrg;
 }
 
+void ZeroChek(Mat const & src){
+    cout<<"Energy Matrix"<<endl;
+    for (size_t i = 0; i < src.rows; i++){
+        for(size_t j = 0; j < src.cols; j++){
+            cout<< static_cast<int>(src.at<uchar>(i, j))<<"\t";
+        }
+        cout<<endl;
+    }
+}
+
+Mat ColoriseImage(Mat const & calc_energy, Mat const & stock_image){
+    Mat colorise_image(Size(stock_image.cols, stock_image.rows), CV_8UC3, Scalar(0, 0, 255));
+    cvtColor(colorise_image, colorise_image, CV_BGR2HSV);
+
+    ushort max_energy = calc_energy.at<ushort>(calc_energy.rows - 1, 0);
+    ushort min_energy = calc_energy.at<ushort>(calc_energy.rows - 1, 0);
+
+    for (size_t j = 0; j < calc_energy.cols; j++){
+        if (calc_energy.at<ushort>(calc_energy.rows - 1, j) > max_energy){
+            max_energy = calc_energy.at<ushort>(calc_energy.rows - 1, j);
+        }
+        if (calc_energy.at<ushort>(calc_energy.rows - 1, j) < min_energy){
+            min_energy = calc_energy.at<ushort>(calc_energy.rows - 1, j);
+        }
+    }
+    for (size_t i = 0; i < colorise_image.rows; i++){
+        for (size_t j = 0; j < colorise_image.cols; j++){
+            colorise_image.at<Vec3b>(i, j)[0] = static_cast<uchar>(
+                    COLOR_CONST - (COLOR_CONST * (calc_energy.at<ushort>(i, j) - min_energy)) / max_energy);
+            colorise_image.at<Vec3b>(i, j)[1] = 255;
+            colorise_image.at<Vec3b>(i, j)[2] = 255;
+        }
+    }
+    cvtColor(colorise_image, colorise_image, CV_HSV2BGR);
+    return  colorise_image;
+}
+
 Mat CalcEnergy(Mat &enrg){
     Mat calc_energ(Size(enrg.cols, enrg.rows), CV_16UC1);
 
+
     for(size_t y = 0; y < enrg.cols; y++){
-        calc_energ.at<uchar>(0, y) = enrg.at<uchar>(0, y);
+        calc_energ.at<ushort>(0, y) = enrg.at<uchar>(0, y);
     }
 
     for (size_t x = 1; x < enrg.rows; x++){
@@ -100,85 +137,107 @@ Mat CalcEnergy(Mat &enrg){
     }
     return calc_energ;
 }
-void GetMinVector(Mat const & vec_energ, Mat & dst){
 
-    size_t Xmin = 0;
-    size_t Ymin = vec_energ.rows - 1;
-    size_t minbuff = vec_energ.at<ushort>(Ymin, 10);
+Mat DeleteVertiaclLine(Mat const & stock){
 
-    for (size_t i = 1; i < vec_energ.cols; i++){
-        cout<<vec_energ.at<ushort>(Ymin, i)<<" ";
-        if (minbuff > vec_energ.at<ushort>(Ymin, i) && vec_energ.at<ushort>(Ymin, i) != 0){
-            Xmin = i;
-            minbuff = vec_energ.at<ushort>(Ymin, i);
+    Mat dst(Size(stock.cols - 1, stock.rows), stock.type());
+    Mat energy = GetEnergy(stock);
+
+    Mat calc_energy = CalcEnergy(energy);
+
+    ushort min_energy = calc_energy.at<ushort>(calc_energy.rows - 1, 0);
+    ushort min_energy_index = 0;
+
+    for (size_t i = 0; i < calc_energy.cols; i++){
+        if (calc_energy.at<ushort>(calc_energy.rows - 1, i) < min_energy){
+            min_energy = calc_energy.at<ushort>(calc_energy.rows - 1, i);
+            min_energy_index = i;
         }
     }
-    cout<<Xmin<<" - "<<minbuff<<" ";
-    dst.at<Vec3b>(Ymin, Xmin)[0] = 0;
-    dst.at<Vec3b>(Ymin, Xmin)[1] = 255;
-    dst.at<Vec3b>(Ymin, Xmin)[2] = 0;
-
-    for (size_t x = vec_energ.rows - 2; x > 0; x--){
+    cout<<min_energy<<" min_index "<<min_energy_index<<endl;
+    for(int i = 0; i < stock.cols; i++){
+        if (min_energy_index != i){
+            dst.at<Vec3b>(stock.rows - 1, i) = stock.at<Vec3b>(stock.rows - 1, i);
+        }
+    }
+    for (size_t j = stock.rows - 2; j > 0; j--) {
+        min_energy = calc_energy.at<ushort>(j , min_energy_index);
         int delt = 0;
-        minbuff = vec_energ.at<ushort>(x, Xmin);
-        if ((Xmin + 1 < vec_energ.cols) && (vec_energ.at<ushort>(x, Xmin + 1) < minbuff)){
-            minbuff = vec_energ.at<ushort>(x, Xmin + 1);
+
+        if ((min_energy_index + 1 < calc_energy.cols) && (calc_energy.at<ushort>(j, min_energy_index + 1) < min_energy)){
+            min_energy = calc_energy.at<ushort>(j, min_energy_index + 1);
             delt = 1;
         }
-        if ((Xmin - 1 >= 0) && (vec_energ.at<ushort>(x, Xmin - 1) < minbuff)){
-            minbuff = vec_energ.at<ushort>(x, Xmin - 1);
+        if ((min_energy_index - 1 >= 0) && (calc_energy.at<ushort>(j, min_energy_index - 1) < min_energy)){
+            min_energy = calc_energy.at<ushort>(j, min_energy_index - 1);
             delt = -1;
         }
-        Xmin += delt;
-        dst.at<Vec3b>(x, Xmin)[0] = 0;
-        dst.at<Vec3b>(x, Xmin)[1] = 255;
-        dst.at<Vec3b>(x, Xmin)[2] = 0;
-        cout<<Xmin<<" - "<<minbuff<<" ";
+        min_energy_index += delt;
+        for(size_t i = 0; i < stock.cols; i++){
+            if (min_energy_index != i){
+                dst.at<Vec3b>(j, i) = stock.at<Vec3b>(j, i);
+            }
+        }
     }
+    return dst;
 }
-/*
-Mat (Mat const & im){
-    vector <vector<int> >
-}*/
+
+Mat DeleteVectors(Mat const & stock, size_t const LinesNumber){
+
+    Mat Fin = DeleteVertiaclLine(stock);
+
+    Mat Buff;
+
+    for (size_t n = 1; n < LinesNumber; n++){
+        Buff = DeleteVertiaclLine(Fin);
+        Buff.copyTo(Fin);
+    }
+
+    return Fin;
+
+}
+
+
 
 
 int main() {
 
-    string imn = "/home/slowbro/Pictures/2.jpg";
+    string imn = "/home/slowbro/Pictures/5.jpg";
 
     Mat stock = imread(imn);
     namedWindow("stock", CV_WINDOW_AUTOSIZE);
 
 
     cout<<"[i] file open: "<<imn <<endl;
-    Mat Energy = MyFilter(stock);
+ //   Mat Energy = MyFilter(stock);
 
-    namedWindow(imn, CV_WINDOW_AUTOSIZE);
+//    namedWindow(imn, CV_WINDOW_AUTOSIZE);
+//
+//
+//    Mat Calc_Energy = CalcEnergy(Energy);
+    Mat Final = DeleteVectors(stock, 100);
+    imwrite("/home/slowbro/Pictures/5new.jpg", Final);
 
-
-    Mat Calc_Energy = CalcEnergy(Energy);
-    GetMinVector(Calc_Energy, stock);
-
-    namedWindow("calcenrgy", CV_WINDOW_AUTOSIZE);
-    resize(Calc_Energy, Calc_Energy, Size(600, 600), INTER_CUBIC);
-    imshow("calcenrgy", Calc_Energy);
-
-    resize(Energy, Energy, Size(600, 600), INTER_CUBIC);
-    imshow(imn, Energy);
-
-    resize(stock, stock, Size(600, 600), INTER_CUBIC);
-    imshow("stock", stock);
+//    Mat Vec_Energy = ColoriseImage(Calc_Energy, stock);
+//    namedWindow("ColoriseImage", CV_WINDOW_AUTOSIZE);
+//    imwrite("/home/slowbro/Pictures/5Vec2.jpg", Vec_Energy);
+//    resize(Vec_Energy, Vec_Energy, Size(600, 600), INTER_CUBIC);
+//    imshow("ColoriseImage", Vec_Energy);
+//
+//
+//    namedWindow("calcenrgy", CV_WINDOW_AUTOSIZE);
+//    resize(Calc_Energy, Calc_Energy, Size(600, 600), INTER_CUBIC);
+//    imshow("calcenrgy", Calc_Energy);
+//
+//    resize(Energy, Energy, Size(600, 600), INTER_CUBIC);
+//    imshow(imn, Energy);
+//
+//    resize(stock, stock, Size(600, 600), INTER_CUBIC);
+//    imshow("stock", stock);
 
 
     //Mat VectorEnergy(stock.rows, stock.cols, CV_8UC1);
 
-
-    while(1) {
-        char key = waitKey(33);
-        if (key == 27) {
-            break;
-        }
-    }
 
     std::cout << "Hello, World!" << std::endl;
     return 0;
