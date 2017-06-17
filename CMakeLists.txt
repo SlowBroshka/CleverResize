@@ -8,3 +8,4 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 set(SOURCE_FILES main.cpp HelpFunctions.cpp HelpFunctions.h Constants.h)
 add_executable(CleverResize ${SOURCE_FILES})
 target_link_libraries( CleverResize ${OpenCV_LIBS} )
+

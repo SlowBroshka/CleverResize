@@ -1,22 +1,23 @@
 
 #include "HelpFunctions.h"
 
+
 using namespace std;
 using namespace cv;
 
 
 int main() {
 
-    string imn = "/home/slowbro/Pictures/5.jpg";
+    string imn = "/home/slowbro/Изображения/img1.jpg";
 
     Mat stock = imread(imn);
-    namedWindow("stock", CV_WINDOW_AUTOSIZE);
-
-
     cout<<"[i] file open: "<<imn <<endl;
+    //Mat energy = ColoriseImagebyStock(stock);
+    //imwrite("/home/slowbro/Изображения/img2energy.jpg", energy);
 
-    Mat Final = DeleteVectors(stock, 400);
-    imwrite("/home/slowbro/Pictures/5new.jpg", Final);
+
+    Mat Final = deltResize(stock, -500, 0);
+    imwrite("/home/slowbro/Изображения/img5resize.jpg", Final);
 
     return 0;
 }
